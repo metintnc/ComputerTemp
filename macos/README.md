@@ -33,6 +33,12 @@ open macos/Package.swift
 ```
 Select the `ComputerTempMac` scheme and press **Run (`⌘R`)**.
 
+### Building a `.app` Bundle & Release `.zip`
+```bash
+./macos/scripts/build-app.sh 1.0.0
+```
+Outputs `macos/dist/ComputerTemp.app` and `macos/dist/ComputerTemp-macOS.zip`.
+
 ### Running Tests
 ```bash
 cd macos
