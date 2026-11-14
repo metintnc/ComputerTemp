@@ -26,6 +26,7 @@ namespace Temp
         private Label cpuCardTitle = null!;
         private Label gpuCardTitle = null!;
         private ProgressBar gpuTemperatureProgressBar = null!;
+        private FlowLayoutPanel metricCardsPanel = null!;
         private AnimatedCardPanel cpuCardPanel = null!;
         private AnimatedCardPanel gpuCardPanel = null!;
         private readonly System.Windows.Forms.Timer pulseTimer = new()
@@ -112,6 +113,7 @@ namespace Temp
             CreateMetricCards();
             CreateCircularGauges();
             CreateHistoryChart();
+            LayoutResponsiveControls();
             chartHistoryController = new ChartHistoryController(historyChart);
             widgetController = new WidgetController(
                 this,
@@ -730,6 +732,7 @@ namespace Temp
         private void form1_Resize(object? sender, EventArgs e)
         {
             UpdateMaximizeButton();
+            LayoutResponsiveControls();
 
             if (WindowState != FormWindowState.Minimized)
             {
@@ -788,7 +791,7 @@ namespace Temp
 
         private void CreateMetricCards()
         {
-            var cardsPanel = new FlowLayoutPanel
+            metricCardsPanel = new FlowLayoutPanel
             {
                 Location = new Point(30, 330),
                 Size = new Size(740, 105),
@@ -816,12 +819,12 @@ namespace Temp
             memoryCardValue = memoryCard.value;
             diskCardValue = diskCard.value;
 
-            cardsPanel.Controls.Add(cpuCard.card);
-            cardsPanel.Controls.Add(gpuCard.card);
-            cardsPanel.Controls.Add(memoryCard.card);
-            cardsPanel.Controls.Add(diskCard.card);
-            Controls.Add(cardsPanel);
-            cardsPanel.BringToFront();
+            metricCardsPanel.Controls.Add(cpuCard.card);
+            metricCardsPanel.Controls.Add(gpuCard.card);
+            metricCardsPanel.Controls.Add(memoryCard.card);
+            metricCardsPanel.Controls.Add(diskCard.card);
+            Controls.Add(metricCardsPanel);
+            metricCardsPanel.BringToFront();
 
             gpuTemperatureProgressBar = new ProgressBar
             {
@@ -834,6 +837,76 @@ namespace Temp
             Controls.Add(gpuTemperatureProgressBar);
             gpuTemperatureProgressBar.BringToFront();
             CreateCoreCards();
+        }
+
+        private void LayoutResponsiveControls()
+        {
+            if (metricCardsPanel is null ||
+                coreFlowPanel is null ||
+                historyChart is null ||
+                controlsPanel is null)
+            {
+                return;
+            }
+
+            const int contentMargin = 30;
+            const int preferredContentWidth = 740;
+            int contentWidth = Math.Min(
+                preferredContentWidth,
+                Math.Max(0, ClientSize.Width - contentMargin * 2));
+            int contentLeft = Math.Max(
+                contentMargin,
+                (ClientSize.Width - contentWidth) / 2);
+
+            metricCardsPanel.Location = new Point(contentLeft, 330);
+            metricCardsPanel.Size = new Size(contentWidth, 105);
+
+            gpuTemperatureProgressBar.Location = new Point(
+                contentLeft + 208,
+                430);
+
+            coreFlowPanel.Location = new Point(contentLeft, 450);
+            coreFlowPanel.Size = new Size(contentWidth, 145);
+
+            historyChart.Location = new Point(contentLeft, 610);
+            historyChart.Size = new Size(contentWidth, 200);
+
+            const int gaugeSize = 150;
+            const int gaugeGap = 25;
+            int gaugeGroupWidth = gaugeSize * 4 + gaugeGap * 3;
+            int gaugeLeft = Math.Max(
+                0,
+                (ClientSize.Width - gaugeGroupWidth) / 2);
+            CircularProgressGauge[] gauges =
+            {
+                cpuTemperatureGauge,
+                cpuUsageGauge,
+                gpuTemperatureGauge,
+                gpuUsageGauge
+            };
+
+            for (int index = 0; index < gauges.Length; index++)
+            {
+                gauges[index].Location = new Point(
+                    gaugeLeft + index * (gaugeSize + gaugeGap),
+                    112);
+            }
+
+            int controlsOffset = Math.Max(
+                0,
+                (controlsPanel.ClientSize.Width - 779) / 2 - 17);
+            intervalLabel.Left = 217 + controlsOffset;
+            intervalNumericUpDown.Left = 377 + controlsOffset;
+            criticalTemperatureLabel.Left = 17 + controlsOffset;
+            criticalTemperatureNumericUpDown.Left = 143 + controlsOffset;
+            logIntervalLabel.Left = 17 + controlsOffset;
+            logIntervalNumericUpDown.Left = 143 + controlsOffset;
+            loggingCheckBox.Left = 240 + controlsOffset;
+            exportLogButton.Left = 446 + controlsOffset;
+            useTemperatureColorsCheckBox.Left = 640 + controlsOffset;
+            startWithWindowsCheckBox.Left = 640 + controlsOffset;
+            darkThemeCheckBox.Left = 640 + controlsOffset;
+            toggleButton.Left = 514 + controlsOffset;
         }
 
         private void CreateCircularGauges()
