@@ -40,6 +40,7 @@ namespace Temp
         private CircularProgressGauge gpuTemperatureGauge = null!;
         private CircularProgressGauge gpuUsageGauge = null!;
         private Button minimizeButton = null!;
+        private Button maximizeButton = null!;
         private Button closeButton = null!;
         private Chart historyChart = null!;
         private ChartHistoryController chartHistoryController = null!;
@@ -49,6 +50,16 @@ namespace Temp
         private Point titleDragStart;
         private bool titleDragging;
         private ContextMenuStrip historyChartMenu = null!;
+        private const int WmNcHitTest = 0x84;
+        private const int HtLeft = 10;
+        private const int HtRight = 11;
+        private const int HtTop = 12;
+        private const int HtTopLeft = 13;
+        private const int HtTopRight = 14;
+        private const int HtBottom = 15;
+        private const int HtBottomLeft = 16;
+        private const int HtBottomRight = 17;
+        private const int ResizeBorder = 8;
 
         public Form1()
         {
@@ -437,37 +448,133 @@ namespace Temp
                 darkThemeCheckBox.Checked
                     ? ThemeMode.Dark
                     : ThemeMode.Light);
+            UpdateCoreCardColors();
+        }
+
+        protected override void WndProc(ref Message message)
+        {
+            if (message.Msg == WmNcHitTest &&
+                WindowState != FormWindowState.Maximized &&
+                (widgetController is null || !widgetController.IsWidgetMode))
+            {
+                Point point = PointToClient(System.Windows.Forms.Cursor.Position);
+                bool left = point.X <= ResizeBorder;
+                bool right = point.X >= ClientSize.Width - ResizeBorder;
+                bool top = point.Y <= ResizeBorder;
+                bool bottom = point.Y >= ClientSize.Height - ResizeBorder;
+
+                if (left && top)
+                {
+                    message.Result = (IntPtr)HtTopLeft;
+                    return;
+                }
+
+                if (right && top)
+                {
+                    message.Result = (IntPtr)HtTopRight;
+                    return;
+                }
+
+                if (left && bottom)
+                {
+                    message.Result = (IntPtr)HtBottomLeft;
+                    return;
+                }
+
+                if (right && bottom)
+                {
+                    message.Result = (IntPtr)HtBottomRight;
+                    return;
+                }
+
+                if (left)
+                {
+                    message.Result = (IntPtr)HtLeft;
+                    return;
+                }
+
+                if (right)
+                {
+                    message.Result = (IntPtr)HtRight;
+                    return;
+                }
+
+                if (top)
+                {
+                    message.Result = (IntPtr)HtTop;
+                    return;
+                }
+
+                if (bottom)
+                {
+                    message.Result = (IntPtr)HtBottom;
+                    return;
+                }
+            }
+
+            base.WndProc(ref message);
         }
 
         private void CreateCustomTitleBar()
         {
             minimizeButton = CreateTitleBarButton("—", "Pencereyi küçült");
+            maximizeButton = CreateTitleBarButton("□", "Pencereyi büyüt");
             closeButton = CreateTitleBarButton("×", "Uygulamayı kapat");
 
             minimizeButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            maximizeButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             closeButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            minimizeButton.Location = new Point(
-                headerPanel.ClientSize.Width - 92,
-                8);
-            closeButton.Location = new Point(
-                headerPanel.ClientSize.Width - 48,
-                8);
+            PositionTitleBarButtons();
             headerPanel.Controls.Add(minimizeButton);
+            headerPanel.Controls.Add(maximizeButton);
             headerPanel.Controls.Add(closeButton);
 
             minimizeButton.Click += (_, _) =>
                 WindowState = FormWindowState.Minimized;
+            maximizeButton.Click += (_, _) => ToggleMaximizedState();
             closeButton.Click += (_, _) => Close();
+            headerPanel.Resize += (_, _) => PositionTitleBarButtons();
 
             headerPanel.MouseDown += titleBar_MouseDown;
             headerPanel.MouseMove += titleBar_MouseMove;
             headerPanel.MouseUp += titleBar_MouseUp;
+            headerPanel.DoubleClick += (_, _) => ToggleMaximizedState();
             titleLabel.MouseDown += titleBar_MouseDown;
             titleLabel.MouseMove += titleBar_MouseMove;
             titleLabel.MouseUp += titleBar_MouseUp;
+            titleLabel.DoubleClick += (_, _) => ToggleMaximizedState();
             processorNameLabel.MouseDown += titleBar_MouseDown;
             processorNameLabel.MouseMove += titleBar_MouseMove;
             processorNameLabel.MouseUp += titleBar_MouseUp;
+            processorNameLabel.DoubleClick += (_, _) => ToggleMaximizedState();
+        }
+
+        private void PositionTitleBarButtons()
+        {
+            closeButton.Location = new Point(
+                headerPanel.ClientSize.Width - closeButton.Width - 8,
+                8);
+            maximizeButton.Location = new Point(
+                closeButton.Left - maximizeButton.Width,
+                8);
+            minimizeButton.Location = new Point(
+                maximizeButton.Left - minimizeButton.Width,
+                8);
+        }
+
+        private void ToggleMaximizedState()
+        {
+            if (WindowState == FormWindowState.Maximized)
+            {
+                WindowState = FormWindowState.Normal;
+                maximizeButton.Text = "□";
+                maximizeButton.AccessibleName = "Pencereyi büyüt";
+                return;
+            }
+
+            WindowState = FormWindowState.Maximized;
+            maximizeButton.Text = "❐";
+            maximizeButton.AccessibleName = "Pencereyi geri yükle";
         }
 
         private static Button CreateTitleBarButton(string text, string tooltip)
@@ -528,6 +635,7 @@ namespace Temp
             {
                 if (child is Button button &&
                     !ReferenceEquals(button, minimizeButton) &&
+                    !ReferenceEquals(button, maximizeButton) &&
                     !ReferenceEquals(button, closeButton))
                 {
                     button.MouseEnter += button_MouseEnter;
@@ -621,12 +729,29 @@ namespace Temp
 
         private void form1_Resize(object? sender, EventArgs e)
         {
+            UpdateMaximizeButton();
+
             if (WindowState != FormWindowState.Minimized)
             {
                 return;
             }
 
             widgetController.HideToTray();
+        }
+
+        private void UpdateMaximizeButton()
+        {
+            if (maximizeButton is null || maximizeButton.IsDisposed)
+            {
+                return;
+            }
+
+            bool isMaximized = WindowState == FormWindowState.Maximized;
+            maximizeButton.Text = isMaximized ? "❐" : "□";
+            maximizeButton.AccessibleName =
+                isMaximized
+                    ? "Pencereyi geri yükle"
+                    : "Pencereyi büyüt";
         }
 
         private void trayIcon_DoubleClick(object? sender, EventArgs e)
@@ -962,6 +1087,8 @@ namespace Temp
 
                 labels[0].Text = FormatTemperature(core.Temperature);
                 labels[1].Text = FormatPercentage(core.Load);
+                labels[0].ForeColor = GetTemperatureColor(core.Temperature);
+                labels[1].ForeColor = GetThemeForegroundColor();
             }
         }
 
@@ -969,7 +1096,7 @@ namespace Temp
         {
             var card = new Panel
             {
-                BackColor = Color.FromArgb(248, 250, 252),
+                BackColor = GetThemeSurfaceColor(),
                 BorderStyle = BorderStyle.FixedSingle,
                 Margin = new Padding(4),
                 Size = new Size(160, 58)
@@ -979,6 +1106,7 @@ namespace Temp
             {
                 AutoSize = true,
                 Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold),
+                ForeColor = GetThemeForegroundColor(),
                 Location = new Point(8, 6),
                 Text = coreName
             };
@@ -986,6 +1114,7 @@ namespace Temp
             var temperatureValue = new Label
             {
                 AutoSize = true,
+                ForeColor = GetThemeForegroundColor(),
                 Location = new Point(8, 29),
                 Text = "-- °C"
             };
@@ -993,6 +1122,7 @@ namespace Temp
             var loadValue = new Label
             {
                 AutoSize = true,
+                ForeColor = GetThemeForegroundColor(),
                 Location = new Point(78, 29),
                 Text = "-- %"
             };
@@ -1132,7 +1262,7 @@ namespace Temp
         {
             if (!useTemperatureColorsCheckBox.Checked || temperature is not float value)
             {
-                return Color.FromArgb(15, 23, 42);
+                return GetThemeForegroundColor();
             }
 
             if (value < 60)
@@ -1145,9 +1275,46 @@ namespace Temp
                 : Color.Firebrick;
         }
 
+        private Color GetThemeForegroundColor()
+        {
+            return darkThemeCheckBox.Checked
+                ? Color.FromArgb(241, 241, 245)
+                : Color.FromArgb(15, 23, 42);
+        }
+
+        private Color GetThemeSurfaceColor()
+        {
+            return darkThemeCheckBox.Checked
+                ? Color.FromArgb(42, 42, 61)
+                : Color.FromArgb(248, 250, 252);
+        }
+
+        private void UpdateCoreCardColors()
+        {
+            foreach (Label[] labels in coreValueLabels.Values)
+            {
+                labels[0].ForeColor = GetTemperatureColor(
+                    ParseTemperature(labels[0].Text));
+                labels[1].ForeColor = GetThemeForegroundColor();
+            }
+        }
+
+        private static float? ParseTemperature(string text)
+        {
+            string value = text.Replace("°C", string.Empty, StringComparison.OrdinalIgnoreCase)
+                .Trim();
+            return float.TryParse(
+                value,
+                NumberStyles.Float,
+                CultureInfo.GetCultureInfo("tr-TR"),
+                out float temperature)
+                ? temperature
+                : null;
+        }
+
         private void ResetTemperatureColors()
         {
-            temperatureLabel.ForeColor = Color.FromArgb(15, 23, 42);
+            temperatureLabel.ForeColor = GetThemeForegroundColor();
             temperatureProgressBar.ForeColor = SystemColors.Highlight;
         }
 
