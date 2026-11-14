@@ -361,3 +361,9 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# macOS / SwiftPM
+.build/
+.swiftpm/
+.DS_Store
+dist/
